@@ -19,7 +19,7 @@ FlareScript is an open-source, minimal-code programming language for building de
 To get started with FlareScript:
 1. Clone the repository:
     ```bash
-    git clone https://github.com/YourUsername/FlareScript.git
+    git clone https://github.com/FlareScript/FlareScript.git
     cd FlareScript
     ```
 2. Install dependencies:
