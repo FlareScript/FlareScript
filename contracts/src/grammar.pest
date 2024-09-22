@@ -1,44 +1,63 @@
 // src/grammar.pest
 
 WHITESPACE = _{ " " | "\t" | "\n" | COMMENT }
-
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* ~ ("\n" | EOI) }
 
 dot = { "." }
+COMMA = { "," }
 
 program = { SOI ~ contract* ~ EOI }
-
 contract = { "contract" ~ ident ~ "{" ~ function* ~ "}" }
 
-function = { "function" ~ ident ~ "(" ~ parameter_list? ~ ")" ~ block }
+function = { "function" ~ ident ~ "(" ~ parameter_list? ~ ")" ~ (":" ~ type_name)? ~ block }
+parameter_list = { parameter ~ (COMMA ~ parameter)* }
+parameter = { ident ~ ":" ~ type_name }
 
-parameter_list = { ident ~ ("," ~ ident)* }
+type_name = { ident }
 
 block = { "{" ~ statement* ~ "}" }
 
-statement = { assignment | function_call }
+statement = { assignment
+            | function_call
+            | if_statement
+            | while_statement
+            | for_statement
+            | variable_declaration
+            | return_statement
+            }
 
 assignment = { ident ~ "=" ~ expression ~ ";" }
-
 function_call = { ident ~ (dot ~ ident)? ~ "(" ~ argument_list? ~ ")" ~ ";" }
+argument_list = { expression ~ (COMMA ~ expression)* }
 
-argument_list = { expression ~ ("," ~ expression)* }
+variable_declaration = { "let" ~ ident ~ ":" ~ type_name ~ ("=" ~ expression)? ~ ";" }
 
-expression = { addition }  // Removed the underscore to make it a visible rule
+if_statement = { "if" ~ "(" ~ expression ~ ")" ~ block ~ else_clause? }
+else_clause = { "else" ~ (if_statement | block) }
 
+while_statement = { "while" ~ "(" ~ expression ~ ")" ~ block }
+
+for_statement = { "for" ~ "(" ~ for_init? ~ ";" ~ expression? ~ ";" ~ for_update? ~ ")" ~ block }
+for_init = { variable_declaration | assignment }
+for_update = { assignment }
+
+return_statement = { "return" ~ expression? ~ ";" }
+
+expression = { addition }
 addition = { multiplication ~ (add_op ~ multiplication)* }
-
-add_op = { "+" | "-" }  // Added this rule
+add_op = { "+" | "-" }
 
 multiplication = { unary ~ (mul_op ~ unary)* }
-
-mul_op = { "*" | "/" }  // Added this rule
+mul_op = { "*" | "/" }
 
 unary = { (operator_unary)* ~ primary }
+operator_unary = { "+" | "-" }
 
-operator_unary = { "+" | "-" }  // Added this rule
-
-primary = { number | ident | string | "(" ~ expression ~ ")" }
+primary = { number
+          | ident
+          | string
+          | "(" ~ expression ~ ")"
+          }
 
 ident = @{ (ASCII_ALPHANUMERIC | "_")+ }
 

@@ -1,7 +1,10 @@
+// src/lexer.rs
+
 use pest::Parser;
-use pest_derive::Parser;
+
 use pest::error::Error;
 use pest::iterators::Pairs;
+use pest_derive::Parser;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]

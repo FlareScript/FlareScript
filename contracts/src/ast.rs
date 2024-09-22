@@ -7,7 +7,6 @@ pub enum ASTNode {
     Program {
         contracts: Vec<ContractNode>,
     },
-    // Other variants can be added if needed
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -19,8 +18,15 @@ pub struct ContractNode {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct FunctionNode {
     pub name: String,
-    pub parameters: Vec<String>,
+    pub parameters: Vec<ParameterNode>,
+    pub return_type: Option<String>,
     pub body: Vec<StatementNode>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct ParameterNode {
+    pub name: String,
+    pub type_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -34,7 +40,30 @@ pub enum StatementNode {
         function_name: String,
         arguments: Vec<ExpressionNode>,
     },
-    // Additional statement types can be added here
+    IfStatement {
+        condition: ExpressionNode,
+        then_branch: Vec<StatementNode>,
+        else_branch: Option<Vec<StatementNode>>,
+    },
+    WhileStatement {
+        condition: ExpressionNode,
+        body: Vec<StatementNode>,
+    },
+    ForStatement {
+        initializer: Option<Box<StatementNode>>,
+        condition: Option<ExpressionNode>,
+        update: Option<Box<StatementNode>>,
+        body: Vec<StatementNode>,
+    },
+    VariableDeclaration {
+        name: String,
+        type_name: String,
+        initial_value: Option<ExpressionNode>,
+    },
+    ReturnStatement {
+        value: Option<ExpressionNode>,
+    },
+    // Add other statement types as needed
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -51,5 +80,5 @@ pub enum ExpressionNode {
         operator: String,
         operand: Box<ExpressionNode>,
     },
-    // Additional expression types can be added here
+    // Add other expression types as needed
 }

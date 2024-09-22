@@ -31,7 +31,7 @@ fn parse_program(pair: Pair<Rule>) -> ASTNode {
 
 fn parse_contract(pair: Pair<Rule>) -> ContractNode {
     let mut inner = pair.into_inner();
-    let name_pair = inner.next().unwrap();
+    let name_pair = inner.next().unwrap(); // Contract name
     let name = name_pair.as_str().to_string();
     let mut functions = vec![];
 
@@ -53,10 +53,21 @@ fn parse_contract(pair: Pair<Rule>) -> ContractNode {
 
 fn parse_function(pair: Pair<Rule>) -> FunctionNode {
     let mut inner = pair.into_inner();
-    let name_pair = inner.next().unwrap();
+    let name_pair = inner.next().unwrap(); // Function name
     let name = name_pair.as_str().to_string();
     let params_pair = inner.next().unwrap();
     let parameters = parse_parameter_list(params_pair);
+
+    // Handle optional return type
+    let return_type = if let Some(next_pair) = inner.peek() {
+        if next_pair.as_rule() == Rule::type_name {
+            Some(inner.next().unwrap().as_str().to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     let body_pair = inner.next().unwrap();
     let body = parse_block(body_pair);
@@ -64,16 +75,38 @@ fn parse_function(pair: Pair<Rule>) -> FunctionNode {
     FunctionNode {
         name,
         parameters,
+        return_type,
         body,
     }
 }
 
-fn parse_parameter_list(pair: Pair<Rule>) -> Vec<String> {
+fn parse_parameter_list(pair: Pair<Rule>) -> Vec<ParameterNode> {
     let mut parameters = vec![];
 
-    for param in pair.into_inner() {
-        if param.as_rule() == Rule::ident {
-            parameters.push(param.as_str().to_string());
+    for param_pair in pair.into_inner() {
+        match param_pair.as_rule() {
+            Rule::parameter => {
+                let mut name = String::new();
+                let mut type_name = String::new();
+
+                for inner_pair in param_pair.into_inner() {
+                    match inner_pair.as_rule() {
+                        Rule::ident => {
+                            name = inner_pair.as_str().to_string();
+                        }
+                        Rule::type_name => {
+                            type_name = inner_pair.as_str().to_string();
+                        }
+                        _ => {}
+                    }
+                }
+
+                parameters.push(ParameterNode { name, type_name });
+            }
+            Rule::COMMA => {
+                // Skip commas
+            }
+            _ => {}
         }
     }
 
@@ -104,6 +137,11 @@ fn parse_statement(pair: Pair<Rule>) -> StatementNode {
     match inner_pair.as_rule() {
         Rule::assignment => parse_assignment(inner_pair),
         Rule::function_call => parse_function_call(inner_pair),
+        Rule::if_statement => parse_if_statement(inner_pair),
+        Rule::while_statement => parse_while_statement(inner_pair),
+        Rule::for_statement => parse_for_statement(inner_pair),
+        Rule::variable_declaration => parse_variable_declaration(inner_pair),
+        Rule::return_statement => parse_return_statement(inner_pair),
         _ => panic!("Unknown statement: {:?}", inner_pair.as_rule()),
     }
 }
@@ -112,6 +150,7 @@ fn parse_assignment(pair: Pair<Rule>) -> StatementNode {
     let mut inner = pair.into_inner();
     let variable_pair = inner.next().unwrap();
     let variable = variable_pair.as_str().to_string();
+    inner.next(); // Consume '='
     let value_pair = inner.next().unwrap();
     let value = parse_expression(value_pair);
 
@@ -120,21 +159,22 @@ fn parse_assignment(pair: Pair<Rule>) -> StatementNode {
 
 fn parse_function_call(pair: Pair<Rule>) -> StatementNode {
     let mut inner = pair.into_inner();
-    let first_part = inner.next().unwrap();
+    let ident_pair = inner.next().unwrap();
+    let next_pair = inner.peek();
 
-    let (receiver, function_name) = if let Some(next_pair) = inner.peek() {
+    let (receiver, function_name) = if let Some(next_pair) = next_pair {
         if next_pair.as_rule() == Rule::dot {
-            inner.next(); // Consume the dot
+            inner.next(); // Consume '.'
             let method_name_pair = inner.next().unwrap();
             (
-                Some(first_part.as_str().to_string()),
+                Some(ident_pair.as_str().to_string()),
                 method_name_pair.as_str().to_string(),
             )
         } else {
-            (None, first_part.as_str().to_string())
+            (None, ident_pair.as_str().to_string())
         }
     } else {
-        (None, first_part.as_str().to_string())
+        (None, ident_pair.as_str().to_string())
     };
 
     let args_pair = inner.next().unwrap();
@@ -151,11 +191,141 @@ fn parse_argument_list(pair: Pair<Rule>) -> Vec<ExpressionNode> {
     let mut arguments = vec![];
 
     for expr_pair in pair.into_inner() {
-        let expr = parse_expression(expr_pair);
-        arguments.push(expr);
+        match expr_pair.as_rule() {
+            Rule::expression => {
+                let expr = parse_expression(expr_pair);
+                arguments.push(expr);
+            }
+            Rule::COMMA => {
+                // Skip commas
+            }
+            _ => {}
+        }
     }
 
     arguments
+}
+
+fn parse_variable_declaration(pair: Pair<Rule>) -> StatementNode {
+    let mut inner = pair.into_inner();
+    inner.next(); // Consume 'let'
+    let name_pair = inner.next().unwrap();
+    let name = name_pair.as_str().to_string();
+    inner.next(); // Consume ':'
+    let type_pair = inner.next().unwrap();
+    let type_name = type_pair.as_str().to_string();
+
+    let initial_value = if let Some(eq_pair) = inner.next() {
+        if eq_pair.as_str() == "=" {
+            let value_pair = inner.next().unwrap();
+            Some(parse_expression(value_pair))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    StatementNode::VariableDeclaration {
+        name,
+        type_name,
+        initial_value,
+    }
+}
+
+fn parse_if_statement(pair: Pair<Rule>) -> StatementNode {
+    let mut inner = pair.into_inner();
+    inner.next(); // Consume 'if'
+    let condition_pair = inner.next().unwrap();
+    let condition = parse_expression(condition_pair);
+    let then_block_pair = inner.next().unwrap();
+    let then_branch = parse_block(then_block_pair);
+
+    let else_branch = if let Some(else_clause_pair) = inner.next() {
+        match else_clause_pair.as_rule() {
+            Rule::else_clause => {
+                let else_inner = else_clause_pair.into_inner().next().unwrap();
+                match else_inner.as_rule() {
+                    Rule::if_statement => Some(vec![parse_if_statement(else_inner)]),
+                    Rule::block => Some(parse_block(else_inner)),
+                    _ => panic!("Unknown else clause"),
+                }
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    StatementNode::IfStatement {
+        condition,
+        then_branch,
+        else_branch,
+    }
+}
+
+fn parse_while_statement(pair: Pair<Rule>) -> StatementNode {
+    let mut inner = pair.into_inner();
+    inner.next(); // Consume 'while'
+    let condition_pair = inner.next().unwrap();
+    let condition = parse_expression(condition_pair);
+    let body_pair = inner.next().unwrap();
+    let body = parse_block(body_pair);
+
+    StatementNode::WhileStatement { condition, body }
+}
+
+fn parse_for_statement(pair: Pair<Rule>) -> StatementNode {
+    let mut inner = pair.into_inner();
+    inner.next(); // Consume 'for'
+    let init_pair = inner.next();
+    let initializer = if let Some(init_pair) = init_pair {
+        if init_pair.as_rule() == Rule::for_init {
+            let init_inner = init_pair.into_inner().next();
+            init_inner.map(|pair| Box::new(parse_statement(pair)))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let condition_pair = inner.next();
+    let condition = condition_pair.map(|pair| parse_expression(pair));
+
+    let update_pair = inner.next();
+    let update = if let Some(update_pair) = update_pair {
+        if update_pair.as_rule() == Rule::for_update {
+            let update_inner = update_pair.into_inner().next();
+            update_inner.map(|pair| Box::new(parse_statement(pair)))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let body_pair = inner.next().unwrap();
+    let body = parse_block(body_pair);
+
+    StatementNode::ForStatement {
+        initializer,
+        condition,
+        update,
+        body,
+    }
+}
+
+fn parse_return_statement(pair: Pair<Rule>) -> StatementNode {
+    let mut inner = pair.into_inner();
+    inner.next(); // Consume 'return'
+    let value = if let Some(expr_pair) = inner.next() {
+        Some(parse_expression(expr_pair))
+    } else {
+        None
+    };
+
+    StatementNode::ReturnStatement { value }
 }
 
 fn parse_expression(pair: Pair<Rule>) -> ExpressionNode {
