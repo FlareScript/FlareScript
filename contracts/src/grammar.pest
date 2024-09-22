@@ -1,0 +1,27 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+
+program = { SOI ~ contract ~ EOI }
+
+contract = { "contract" ~ ident ~ "{" ~ function* ~ "}" }
+
+function = { "function" ~ ident ~ "(" ~ parameter_list? ~ ")" ~ block }
+
+parameter_list = { ident ~ ("," ~ ident)* }
+
+block = { "{" ~ statement* ~ "}" }
+
+statement = { assignment | function_call }
+
+assignment = { ident ~ "=" ~ expression ~ ";" }
+
+function_call = { ident ~ ("." ~ ident)? ~ "(" ~ argument_list? ~ ")" ~ ";" }
+
+argument_list = { expression ~ ("," ~ expression)* }
+
+expression = { number | ident | string }
+
+ident = @{ (ASCII_ALPHANUMERIC | "_")+ }
+
+number = @{ ASCII_DIGIT+ }
+
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
