@@ -1,6 +1,12 @@
-WHITESPACE = _{ " " | "\t" | "\n" }
+// src/grammar.pest
 
-program = { SOI ~ contract ~ EOI }
+WHITESPACE = _{ " " | "\t" | "\n" | COMMENT }
+
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* ~ ("\n" | EOI) }
+
+dot = { "." }
+
+program = { SOI ~ contract* ~ EOI }
 
 contract = { "contract" ~ ident ~ "{" ~ function* ~ "}" }
 
@@ -14,11 +20,25 @@ statement = { assignment | function_call }
 
 assignment = { ident ~ "=" ~ expression ~ ";" }
 
-function_call = { ident ~ ("." ~ ident)? ~ "(" ~ argument_list? ~ ")" ~ ";" }
+function_call = { ident ~ (dot ~ ident)? ~ "(" ~ argument_list? ~ ")" ~ ";" }
 
 argument_list = { expression ~ ("," ~ expression)* }
 
-expression = { number | ident | string }
+expression = { addition }  // Removed the underscore to make it a visible rule
+
+addition = { multiplication ~ (add_op ~ multiplication)* }
+
+add_op = { "+" | "-" }  // Added this rule
+
+multiplication = { unary ~ (mul_op ~ unary)* }
+
+mul_op = { "*" | "/" }  // Added this rule
+
+unary = { (operator_unary)* ~ primary }
+
+operator_unary = { "+" | "-" }  // Added this rule
+
+primary = { number | ident | string | "(" ~ expression ~ ")" }
 
 ident = @{ (ASCII_ALPHANUMERIC | "_")+ }
 
